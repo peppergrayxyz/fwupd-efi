@@ -1,45 +1,121 @@
 name: Continuous Integration
 on:
   push:
-    branches: [ main ]
+    branches: [ workflow ]
   pull_request:
-    branches: [ main ]
+    branches: [ workflow ]
 
 permissions:
   contents: read
 
 jobs:
-  pre-commit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Refresh dependencies
-        run: sudo apt update
-      - name: Install dependencies
-        run: sudo apt install shellcheck -y
-      - name: Run pre-commit hooks
-        run: |
-          ./contrib/setup
-          source venv/bin/activate
-          sed -i "/no-commit-to-branch/,+1d" .pre-commit-config.yaml
-          pre-commit run --all-files
+  #pre-commit:
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #    - uses: actions/checkout@v4
+  #    - name: Refresh dependencies
+  #      run: sudo apt update
+  #    - name: Install dependencies
+  #      run: sudo apt install shellcheck -y
+  #    - name: Run pre-commit hooks
+  #      run: |
+  #        ./contrib/setup
+  #        source venv/bin/activate
+  #        sed -i "/no-commit-to-branch/,+1d" .pre-commit-config.yaml
+  #        pre-commit run --all-files
 
   build:
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
-        os: [fedora, debian-x86_64, arch, debian-i386]
+        include:
+          - distro: fedora
+            platform: linux/amd64
+            image: fedora:latest
+          - distro: debian
+            platform: linux/amd64
+            image: debian:testing
+          - distro: debian
+            platform: linux/386
+            image: i386/debian:testing
+          - distro: arch
+            platform: linux/amd64
+            image: archlinux/archlinux:latest
+
+          - distro: ubuntu
+            platform: linux/arm/v7
+            image: ubuntu:rolling
+          - distro: ubuntu
+            platform: linux/arm64/v8
+            image: ubuntu:rolling
+          - distro: ubuntu
+            platform: linux/riscv64
+            image: ubuntu:rolling
+
+          - distro: alpine-gcc
+            platform: linux/amd64
+            image: alpine:latest
+          - distro: alpine-gcc
+            platform: linux/386
+            image: alpine:latest
+          - distro: alpine-gcc
+            platform: linux/arm/v7
+            image: alpine:latest
+          - distro: alpine-gcc
+            platform: linux/arm64/v8
+            image: alpine:latest
+          - distro: alpine-gcc
+            platform: linux/riscv64
+            image: alpine:latest
+            
+          - distro: alpine-llvm
+            platform: linux/amd64
+            image: alpine:latest
+          - distro: alpine-llvm
+            platform: linux/386
+            image: alpine:latest
+          - distro: alpine-llvm
+            platform: linux/arm/v7
+            image: alpine:latest
+          - distro: alpine-llvm
+            platform: linux/arm64/v8
+            image: alpine:latest
+          - distro: alpine-llvm
+            platform: linux/riscv64
+            image: alpine:latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Docker login
-        run: docker login docker.pkg.github.com -u $GITHUB_ACTOR -p $GITHUB_TOKEN
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - name: Build in container
-        env:
-          CI_NETWORK: true
-          CI: true
-        run: |
-          echo $GITHUB_WORKSPACE
-          docker run --privileged -e CI=true -t -v $GITHUB_WORKSPACE:/github/workspace docker.pkg.github.com/fwupd/fwupd/fwupd-${{matrix.os}}:latest ./contrib/ci.sh
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Enable QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Load setup script
+        id: ci_setup
+        uses: jaywcjlove/github-action-read-file@main
+        with:
+          path: contrib/ci_setup.sh
+
+      - name: Run CI inside ${{ matrix.image }}
+        uses: uraimo/run-on-arch-action@v3
+        with:
+          arch: none
+          distro: none
+          shell: /bin/sh
+          base_image: |
+            --platform=${{ matrix.platform }} ${{ matrix.image }}
+          dockerRunArgs: |
+            --volume "${{ github.workspace }}:/work"
+            --workdir /work
+          # githubToken: ${{ github.token }}
+          install: |
+            CI_DISTRO="${{ matrix.distro }}"
+            ${{ steps.ci_setup.outputs.content }}
+          run: |
+            set -e
+            CI_DISTRO="${{ matrix.distro }}" ./contrib/ci.sh

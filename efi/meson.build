@@ -200,6 +200,7 @@ if host_cpu == 'x86_64'
                    '-DGNU_EFI_USE_MS_ABI']
 elif host_cpu == 'x86'
   compile_args += ['-mno-sse',
+                   '-mfpmath=387',
                    '-mno-mmx',
                    '-mno-red-zone',
                    '-m32']
