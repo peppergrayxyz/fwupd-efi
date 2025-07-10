@@ -34,29 +34,18 @@ jobs:
           - distro: fedora
             platform: linux/amd64
             image: fedora:latest
-            buildpkg: 1
+            buildpkg: true
           - distro: debian
             platform: linux/amd64
             image: debian:testing
-            buildpkg: 1
+            buildpkg: true
           - distro: debian
             platform: linux/386
             image: i386/debian:testing
-            buildpkg: 1
+            buildpkg: true
           - distro: arch
             platform: linux/amd64
             image: archlinux/archlinux:latest
-            buildpkg: 1
-
-          - distro: ubuntu
-            platform: linux/arm/v7
-            image: ubuntu:rolling
-          - distro: ubuntu
-            platform: linux/arm64/v8
-            image: ubuntu:rolling
-          - distro: ubuntu
-            platform: linux/riscv64
-            image: ubuntu:rolling
 
           - distro: alpine
             platform: linux/amd64
@@ -73,22 +62,35 @@ jobs:
           - distro: alpine
             platform: linux/riscv64
             image: alpine:latest
+          - distro: alpine
+            platform: linux/loong64
+            image: ghcr.io/loong64/alpine
+            continue-on-error: true # broken in binutils 2.44 https://sourceware.org/pipermail/binutils-cvs/2024-August/065576.html
             
           - distro: alpine-llvm
             platform: linux/amd64
             image: alpine:latest
+            llvm: true
           - distro: alpine-llvm
             platform: linux/386
             image: alpine:latest
+            llvm: true
           - distro: alpine-llvm
             platform: linux/arm/v7
             image: alpine:latest
+            llvm: true
           - distro: alpine-llvm
             platform: linux/arm64/v8
             image: alpine:latest
+            llvm: true
           - distro: alpine-llvm
             platform: linux/riscv64
             image: alpine:latest
+            llvm: true
+          - distro: alpine-llvm
+            platform: linux/loong64
+            image: ghcr.io/loong64/alpine
+            llvm: true
 
     steps:
       - name: Checkout source
@@ -98,6 +100,12 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
+
+      - name: Export evn vars
+        run: |
+          echo "CI_DISTRO=${{ matrix.distro }}" >> "$GITHUB_ENV"
+          echo "CI_BUILDPKG=${{ matrix.buildpkg && '1' || '' }}" >> "$GITHUB_ENV"
+          echo "LLVM=${{ matrix.llvm && '1' || '' }}" >> "$GITHUB_ENV"
 
       - name: Load setup script
         id: ci_install
@@ -118,12 +126,13 @@ jobs:
             --workdir /work
           # githubToken: ${{ github.token }}
           install: |
-            CI_DISTRO="${{ matrix.distro }}"
-            CI_BUILDPKG="${{ matrix.buildpkg }}"
+            CI_DISTRO="${{ env.CI_DISTRO }}"
+            CI_BUILDPKG="${{ env.CI_BUILDPKG }}"
+            LLVM="${{ env.LLVM }}"
             ${{ steps.ci_install.outputs.content }}
-          env: |
-            CI_DISTRO: ${{ matrix.distro }}
-            CI_BUILDPKG: ${{ matrix.buildpkg }}
           run: |
-            set -e
+            set -ex
+            export CI_DISTRO="${{ env.CI_DISTRO }}"
+            export CI_BUILDPKG="${{ env.CI_BUILDPKG }}"
+            export LLVM="${{ env.LLVM }}"
             ./contrib/ci.sh
