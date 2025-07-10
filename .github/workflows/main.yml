@@ -34,15 +34,19 @@ jobs:
           - distro: fedora
             platform: linux/amd64
             image: fedora:latest
+            buildpkg: 1
           - distro: debian
             platform: linux/amd64
             image: debian:testing
+            buildpkg: 1
           - distro: debian
             platform: linux/386
             image: i386/debian:testing
+            buildpkg: 1
           - distro: arch
             platform: linux/amd64
             image: archlinux/archlinux:latest
+            buildpkg: 1
 
           - distro: ubuntu
             platform: linux/arm/v7
@@ -54,19 +58,19 @@ jobs:
             platform: linux/riscv64
             image: ubuntu:rolling
 
-          - distro: alpine-gcc
+          - distro: alpine
             platform: linux/amd64
             image: alpine:latest
-          - distro: alpine-gcc
+          - distro: alpine
             platform: linux/386
             image: alpine:latest
-          - distro: alpine-gcc
+          - distro: alpine
             platform: linux/arm/v7
             image: alpine:latest
-          - distro: alpine-gcc
+          - distro: alpine
             platform: linux/arm64/v8
             image: alpine:latest
-          - distro: alpine-gcc
+          - distro: alpine
             platform: linux/riscv64
             image: alpine:latest
             
@@ -96,10 +100,10 @@ jobs:
           platforms: all
 
       - name: Load setup script
-        id: ci_setup
+        id: ci_install
         uses: jaywcjlove/github-action-read-file@main
         with:
-          path: contrib/ci_setup.sh
+          path: contrib/ci_install.sh
 
       - name: Run CI inside ${{ matrix.image }}
         uses: uraimo/run-on-arch-action@v3
@@ -115,7 +119,11 @@ jobs:
           # githubToken: ${{ github.token }}
           install: |
             CI_DISTRO="${{ matrix.distro }}"
-            ${{ steps.ci_setup.outputs.content }}
+            CI_BUILDPKG="${{ matrix.buildpkg }}"
+            ${{ steps.ci_install.outputs.content }}
+          env: |
+            CI_DISTRO: ${{ matrix.distro }}
+            CI_BUILDPKG: ${{ matrix.buildpkg }}
           run: |
             set -e
-            CI_DISTRO="${{ matrix.distro }}" ./contrib/ci.sh
+            ./contrib/ci.sh
