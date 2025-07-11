@@ -10,8 +10,15 @@ conf.set_quoted('PACKAGE_VERSION', meson.project_version())
 
 cc = meson.get_compiler('c')
 objcopy = find_program('objcopy')
-objcopy_version = run_command(objcopy, '--version', check: true).stdout().split('\n')[0].split(' ')[-1]
-
+objcopy_version = objcopy.version()
+objcopy_info=run_command(objcopy, '--version', check : true).stdout()
+if objcopy_info.contains('LLVM')
+  objcopy_vendor='llvm'
+elif objcopy_info.contains('GNU')
+  objcopy_vendor='gnu'
+else
+  objcopy_vendor='other'
+endif
 gnuefi = dependency('gnu-efi', version: '>= 3.0.18')
 prefix = get_option('prefix')
 libdir = join_paths(prefix, get_option('libdir'))

@@ -94,18 +94,29 @@ else
         coff_header_in_crt0 = false
 endif
 
-# older objcopy for Aarch64, ARM32 and RISC-V are not EFI capable.
-# Use 'binary' instead, and add required symbols manually.
-if ( host_cpu == 'arm'
-  or (host_cpu == 'riscv64'     and (objcopy_version.version_compare ('< 2.42') or coff_header_in_crt0))
-  or (host_cpu == 'aarch64'     and (objcopy_version.version_compare ('< 2.38') or coff_header_in_crt0 or uswid.found()))
-  or (host_cpu == 'loongarch64' and (objcopy_version.version_compare ('< 2.41') or coff_header_in_crt0)) )
+if objcopy_vendor == 'gnu'
+  # older objcopy for Aarch64, ARM32 and RISC-V are not EFI capable.
+  # Use 'binary' instead, and add required symbols manually.
+  if ( host_cpu == 'arm'
+    or (host_cpu == 'riscv64'     and (objcopy_version.version_compare ('< 2.42') or coff_header_in_crt0))
+    or (host_cpu == 'aarch64'     and (objcopy_version.version_compare ('< 2.38') or coff_header_in_crt0 or uswid.found()))
+    or (host_cpu == 'loongarch64' and (objcopy_version.version_compare ('< 2.41') or coff_header_in_crt0)) )
+    objcopy_manualsymbols = true
+    generate_binary_extra = ['--objcopy-manualsymbols']
+  else
+    objcopy_manualsymbols = false
+    generate_binary_extra = []
+  endif
+elif objcopy_vendor == 'llvm'
+  # llvm-objcopy lacks support for efi-app-x86_64 output
+  # https://github.com/llvm/llvm-project/issues/108609
   objcopy_manualsymbols = true
   generate_binary_extra = ['--objcopy-manualsymbols']
 else
   objcopy_manualsymbols = false
   generate_binary_extra = []
 endif
+
 
 # is the system linker script new enough to know about SBAT?
 # i.e. gnu-efi with https://github.com/vathpela/gnu-efi/pull/14 has been installed
@@ -141,7 +152,7 @@ endif
 
 # SBOM not in system crt0
 if objcopy_manualsymbols
-  if uswid.found()
+  if uswid.found() or objcopy_vendor == 'llvm'
     warning('Switching to local copy of crt0 as using SBOM')
     efi_crtdir = join_paths(meson.current_build_dir(), 'crt0')
     efi_ldsdir = join_paths(meson.current_source_dir(), 'lds')
@@ -149,7 +160,7 @@ if objcopy_manualsymbols
 endif
 
 # Check aligned lds and crt0 on ARM64 this breaks otherwise
-if host_cpu == 'aarch64' and not objcopy_manualsymbols
+if host_cpu == 'aarch64' and not objcopy_manualsymbols 
   if efi_ldsdir == join_paths(meson.current_source_dir(), 'lds')
       arch_lds = 'elf_@0@@1@_efi_system.lds'.format(gnu_efi_arch, lds_os)
   endif

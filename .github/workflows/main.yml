@@ -47,6 +47,28 @@ jobs:
             platform: linux/amd64
             image: archlinux/archlinux:latest
 
+          - distro: ubuntu
+            platform: linux/amd64
+            image: ubuntu:rolling
+          - distro: ubuntu
+            platform: linux/arm64
+            image: ubuntu:rolling
+          - distro: ubuntu
+            platform: linux/riscv64
+            image: ubuntu:rolling
+          - distro: ubuntu-llvm
+            platform: linux/amd64
+            image: ubuntu:rolling
+            llvm: true
+          - distro: ubuntu-llvm
+            platform: linux/arm64
+            image: ubuntu:rolling
+            llvm: true
+          - distro: ubuntu-llvm
+            platform: linux/riscv64
+            image: ubuntu:rolling
+            llvm: true
+
           - distro: alpine
             platform: linux/amd64
             image: alpine:latest

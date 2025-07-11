@@ -12,9 +12,9 @@ set -x
 # Build
 if [ -z "$CI_BUILDPKG" ]; then
     # normal build
-    if [ -n "$LLVM" ]; then export CC=clang CC_LD=lld CFLAGS='-fuse-ld=lld' LDFLAGS='-fuse-ld=lld' AR=llvm-ar STRIP=llvm-strip; fi
-    # OBJCOPY=llvm-objcopy
-    meson build
+    if [ -n "$LLVM" ]; then export CC='clang' CC_LD='lld' CFLAGS='-fuse-ld=lld' LDFLAGS='-fuse-ld=lld' AR='llvm-ar' STRIP='llvm-strip' OBJCOPY='llvm-objcopy'; fi
+    # 
+    meson build "$@"
     ninja -C build
 else
     # package build
