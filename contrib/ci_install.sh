@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 if [ -z "$CI_DISTRO" ]; then
   if   command -v apt    > /dev/null 2>&1; then CI_DISTRO='debian'; 

@@ -9,6 +9,7 @@ conf = configuration_data()
 conf.set_quoted('PACKAGE_VERSION', meson.project_version())
 
 cc = meson.get_compiler('c')
+cc_ld = find_program(cc.get_linker_id())
 objcopy = find_program('objcopy')
 objcopy_version = objcopy.version()
 objcopy_info=run_command(objcopy, '--version', check : true).stdout()

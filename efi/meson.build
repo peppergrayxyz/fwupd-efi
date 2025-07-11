@@ -211,8 +211,6 @@ compile_args = ['-Og',
                 '-I.',
                 '-isystem', efi_incdir,
                 '-isystem', join_paths(efi_incdir, gnu_efi_path_arch)]
-compile_args += user_cflags
-
 # clang only has fno-merge-all-constants
 compile_args += cc.first_supported_argument('-fno-merge-constants')
 
@@ -245,7 +243,6 @@ efi_ldflags = ['-T',
                '-L', efi_crtdir,
                '-L', efi_libdir,
                join_paths(efi_crtdir, arch_crt)]
-efi_ldflags += user_ldflags
 
 if host_cpu == 'aarch64' or host_cpu == 'arm'
 # Don't use 64KiB pages
@@ -341,15 +338,16 @@ if efi_crtdir == join_paths(meson.current_build_dir(), 'crt0')
   fwupd_so_deps += [o_crt0]
 endif
 
-efi_cc_ldflags = user_ldflags
+efi_cc_ldflags = []
 foreach flag : efi_ldflags
   efi_cc_ldflags += ['-Wl,' + flag]
 endforeach
+efi_cc_ldflags += '-fuse-ld=' + cc_ld.path()
 
 so = custom_target('fwup.so',
                    input : o_files,
                    output : 'fwup.so',
-                   command : [cc.cmd_array() + user_ldflags, '-nostdlib', '-o', '@OUTPUT@'] +
+                   command : [cc.cmd_array(), '-nostdlib', '-o', '@OUTPUT@'] +
                              efi_cc_ldflags + ['@INPUT@'] +
                              ['-lefi', '-lgnuefi', libgcc_file_name],
                    depends: fwupd_so_deps)
