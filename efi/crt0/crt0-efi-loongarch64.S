@@ -174,6 +174,7 @@ section_table:
 #endif
 
 	.text
+	.align 12
 	.globl _start
 	.type _start,%function
 _start:
@@ -196,7 +197,8 @@ _start:
 0:	ld.d	  $ra, $sp, 0
 	addi.d	  $sp, $sp, 24
 	jr        $ra
-	.end	  _start
+	.end
+              _start
 // hand-craft a dummy .reloc section so EFI knows it's a relocatable executable:
 
  	.data
