@@ -4,11 +4,9 @@
  * Derived from gnu‑efi’s original crt0‑efi-x86_64.S plus the PE/COFF header
  * logic used in crt0‑efi-arm.S.
  *
- * crt0-efi-x86_64.S - x86_64 EFI startup code:
+ * crt0-efi-ia32.S - x86 EFI startup code.
  *  Copyright (C) 1999 Hewlett-Packard Co.
- *   Contributed by David Mosberger <davidm@hpl.hp.com>.
- *  Copyright (C) 2005 Intel Co.
- *   Contributed by Fenghua Yu <fenghua.yu@intel.com>.
+ *     Contributed by David Mosberger <davidm@hpl.hp.com>.
  * crt0-efi-arm.S - PE/COFF header for ARM EFI applications
  *  Copyright (C) 2014 Linaro Ltd. <ard.biesheuvel@linaro.org>
  *
@@ -29,7 +27,7 @@ pe_header:
     .ascii      "PE"
     .2byte      0
 coff_header:
-    .2byte      0x8664                      // Machine: AMD64
+    .2byte      0x014c                      // Machine: I386
     .2byte      NR_SECTIONS                 // nr_sections
     .4byte      0                           // TimeDateStamp
     .4byte      0                           // PointerToSymbolTable
@@ -40,7 +38,7 @@ coff_header:
                                                 // IMAGE_FILE_LINE_NUMS_STRIPPED
                                                 // IMAGE_FILE_DEBUG_STRIPPED
 optional_header:
-    .2byte      0x020b                      // Magic: PE32+
+    .2byte      0x010b                      // Magic: PE32
     .byte       0x02                        // MajorLinkerVersion
     .byte       0x14                        // MinorLinkerVersion
     .4byte      _text_size - ImageBase      // SizeOfCode
@@ -168,38 +166,40 @@ section_table:
 .globl _start
 .type _start,%function
 _start:
-    subq $8, %rsp
-    pushq %rcx
-    pushq %rdx
+    pushl %ebp
+    movl %esp,%ebp
 
-0:
-    lea ImageBase(%rip), %rdi
-    lea _DYNAMIC(%rip), %rsi
+    pushl 12(%ebp)            # copy "image" argument
+    pushl  8(%ebp)            # copy "systab" argument
 
-    popq %rcx
-    popq %rdx
-    pushq %rcx
-    pushq %rdx
+    call 0f
+0:    popl %eax
+    movl %eax,%ebx
+
+    addl $ImageBase-0b,%eax        # %eax = ldbase
+    addl $_DYNAMIC-0b,%ebx        # %ebx = _DYNAMIC
+
+    pushl %ebx            # pass _DYNAMIC as second argument
+    pushl %eax            # pass ldbase as first argument
     call _relocate
+    popl %ebx
+    popl %ebx
+    testl %eax,%eax
+    jne .exit
+  
+    call _entry            # call app with "image" and "systab" argument
 
-    popq %rdi
-    popq %rsi
-
-    call _entry
-    addq $8, %rsp
-
-.exit:
-      ret
-
+.exit:    leave
+    ret
+ 
      // hand-craft a dummy .reloc section so EFI knows it's a relocatable executable:
-
+ 
      .data
 dummy:    .4byte    0
 
 #define IMAGE_REL_ABSOLUTE    0
-     .section .reloc, "a"
-label1:
-    .4byte    dummy-label1                // Page RVA
+     .section .reloc
+     .4byte    dummy                    // Page RVA
     .4byte    12                    // Block Size (2*4+2*2), must be aligned by 32 Bits
     .2byte    (IMAGE_REL_ABSOLUTE<<12) +  0        // reloc for dummy
     .2byte    (IMAGE_REL_ABSOLUTE<<12) +  0        // reloc for dummy
