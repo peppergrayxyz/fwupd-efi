@@ -1,0 +1,29 @@
+name: CI run on latest
+on:
+  push:
+    branches: [ main, ci ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  run-latest:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, i386, arm, aarch64, riscv64, loongarch64 ]
+        features: [ 
+          "base gnu py3pe gnuefi"
+        ]
+        include:
+          - arch: loongarch64
+            image: ghcr.io/loong64/alpine
+
+    uses: ./.github/workflows/ci_runner.yaml
+    with:
+      arch: ${{ matrix.arch }}
+      features: ${{ matrix.features }}
+      image: ${{ matrix.image }}

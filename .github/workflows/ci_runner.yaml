@@ -1,0 +1,52 @@
+name: CI Runner
+
+on:
+  workflow_call:
+    inputs:
+      distro:         {type: string, default: 'alpine'}
+      vendor:         {type: string, default: 'linux'}
+      arch:           {type: string, default: 'x86_64'}
+      image:          {type: string, default: 'alpine:latest'}
+      features:       {type: string, default: 'base gnu py3pe gnuefi'}
+      toolchain:      {type: string, default: ''}
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+    
+    - name: Enable QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: all
+
+    - name: Load install script
+      id: ci_install
+      uses: jaywcjlove/github-action-read-file@main
+      with:
+        path: contrib/ci_install.sh
+
+    - name: Run CI inside ${{ inputs.image }}
+      uses: uraimo/run-on-arch-action@v3
+      with:
+        arch: ${{ inputs.arch }}
+        distro: ${{ inputs.distro }}
+        base_image: |
+            --platform=${{ inputs.vendor }}/${{ inputs.arch }} ${{ inputs.image }}
+        dockerRunArgs: |
+          --volume "${{ github.workspace }}:/build"
+        #githubToken: ${{ github.token }}
+        install: |         
+          install() {
+          ${{ steps.ci_install.outputs.content }}    
+          }
+          install "${{ inputs.distro }}" ${{ inputs.features }}
+        run: |
+          TOOLCHAIN=${{ inputs.toolchain && inputs.toolchain || '' }} ./contrib/ci_build.sh
