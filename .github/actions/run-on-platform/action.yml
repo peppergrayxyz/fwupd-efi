@@ -43,10 +43,10 @@ runs:
         set -x
         [ "$(uname -m)" = "x86_64" ] && [ "${{ inputs.arch }}" = "i386" ] && linux32
         mkdir -p "${PWD}/${{ inputs.build_dir }}"
-        install "${{ inputs.distro }}" "${{ inputs.arch }}" ${{ inputs.features }}
+        install "${{ inputs.distro }}" ${{ inputs.features }}
       env: |
         TOOLCHAIN: "${{ inputs.toolchain }}"
       run: |
         set -x
         [ "$(uname -m)" = "x86_64" ] && [ "${{ inputs.arch }}" = "i386" ] && linux32
-         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }} "$(uname -m)"
+         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }}

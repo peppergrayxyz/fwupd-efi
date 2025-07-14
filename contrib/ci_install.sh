@@ -3,14 +3,15 @@
 set -eu
 
 if [ $# -lt 2 ]; then
-    echo "usage $0 <distro> <arch> <features...>" >&2
+    echo "usage ARCH= $0 <distro> <features...>" >&2
     exit 1
 fi
 
 distro="$1"
-arch="${2:-$(uname -m)}"
-shift 2
+shift 1
 features="$*"
+
+arch="${ARCH:-"$(uname -m)"}"
 
 echo "Installer started:"
 echo "- features: $features"
@@ -89,7 +90,7 @@ for f in $features; do
       esac 
       edk2rpm=1;
       case "$distro" in
-        *)         packages="$packages wget tar binutils" ;;
+        *)         packages="$packages wget tar xz binutils" ;;
       esac ;;
     "buildpkg") case "$distro" in
         "ubuntu"*|\
@@ -223,10 +224,11 @@ if [ -n "$edk2rpm" ]; then
     ovmf_inst_dir="$3"
     ovmf_link_dir="$4"
 
-    case "$ovmf_pkg_arch" in
-        "x64")  ovmf_pkg="ovmf"                 ;;
-        "ia32") ovmf_pkg="ovmf-ia32"            ;;
-        *)      ovmf_pkg="qemu-efi-$ovmf_pkg_arch"  ;;
+    case "$ovmf_pkg_arch" in        
+        "i386"|\
+        "i686")   ovmf_pkg="ovmf-ia32"                ;;
+        "x86_64") ovmf_pkg="ovmf"                     ;;
+        *)        ovmf_pkg="qemu-efi-$ovmf_pkg_arch"  ;;
     esac
 
     echo "Download deb for $ovmf_pkg:"
@@ -235,8 +237,8 @@ if [ -n "$edk2rpm" ]; then
     getOvmfPkg "$ovmf_pkg" "$ovmf_work_dir" || return $?
 
     echo "Install $ovmf_pkg:"
-    ar x "$ovmf_work_dir/$ovmf_pkg.deb" --output="$ovmf_work_dir" || return $?
-    tar -xJf "$ovmf_work_dir/data.tar.xz" --directory="$ovmf_inst_dir/"  || return $?
+    ar vx "$ovmf_work_dir/$ovmf_pkg.deb" --output="$ovmf_work_dir"       || return $?
+    tar -xvf "$ovmf_work_dir/data.tar.xz" --directory="$ovmf_inst_dir/"  || return $?
     rm -rf "$ovmf_work_dir" 
     
     echo "Create links:"  

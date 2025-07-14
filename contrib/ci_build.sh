@@ -2,11 +2,11 @@
 set -euo pipefail
 
 build_dir="${1:-build}"
-arch="${2:-" "}"
-shift 2 || true
+shift || true
 meson_args="$*"
 
-[ -n "$arch" ] && echo "[Warning]: cross compiling is currently not configured"
+arch="${ARCH:-"$(uname -m)"}"
+[ -n "$arch" ] && echo "[Warning]: cross compiling must be configured via '--cross-file'"
 
 toolchain="${TOOLCHAIN:-}"
 configure_env=""
