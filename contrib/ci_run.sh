@@ -22,8 +22,8 @@ check_dep()
 }
 
 work_dir="${1:-$(pwd)/build}"
-arch="${2:-"$(uname -m)"}"
-ekd2_dir="${3:-/usr/share/edk2}"
+ekd2_dir="${2:-/usr/share/edk2}"
+arch="${ARCH:-"$(uname -m)"}"
 
 qemu_cmd="qemu-system-$arch"
 machine=""
