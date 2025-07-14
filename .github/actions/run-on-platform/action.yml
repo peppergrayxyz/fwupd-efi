@@ -48,4 +48,5 @@ runs:
         TOOLCHAIN: "${{ inputs.toolchain }}"
       run: |
         set -x
-         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }} ${{ inputs.arch }}
+        [ "$(uname -m)" = "x86_64" ] && [ "${{ inputs.arch }}" = "i386" ] && linux32
+         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }} "$(uname -m)"

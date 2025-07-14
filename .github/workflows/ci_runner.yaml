@@ -49,7 +49,7 @@ jobs:
     
     - uses: actions/upload-artifact@v4
       with:
-        name: fwupd-${{ github.run_id }}-${{ needs.job_id.outputs.job_id }}
+        name: fwupd-efi-${{ inputs.arch }}-${{ github.run_id }}-${{ needs.job_id.outputs.job_id }}
         path: build/efi/*.efi
  
   test:
@@ -63,7 +63,7 @@ jobs:
 
     - uses: actions/download-artifact@v4
       with:
-        name: fwupd-${{ github.run_id }}-${{ needs.job_id.outputs.job_id }}
+        name: fwupd-efi-${{ inputs.arch }}-${{ github.run_id }}-${{ needs.job_id.outputs.job_id }}
         path: build/efi/
 
     - name: Test on Platform
@@ -76,3 +76,8 @@ jobs:
         features:   'qemu edk2'
         build_dir:  ${{ inputs.build_dir }}
         run:        run
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: fwupd-log-${{ inputs.arch }}-${{ github.run_id }}-${{ needs.job_id.outputs.job_id }}
+        path: build/*.efi.log

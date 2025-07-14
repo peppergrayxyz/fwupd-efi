@@ -157,15 +157,14 @@ if [ -n "$edk2rpm" ]; then
   {
     pkg="$1"
     pkg_dir="$2"
-
     pkg_arch="noarch"
-    pkg_version="20250523"
-    pkg_release="6.fc42" 
 
     case "$pkg" in
-    *"arm") pkg_version="20240813"; pkg_release="2.fc41" ;;
+    *"ia32"|\
+    *"arm")   pkg_version="20240813"; pkg_release="2.fc41" ;;
+    *)        pkg_version="20250523"; pkg_release="6.fc42"
     esac
-
+    
     pkg_base_url="https://kojipkgs.fedoraproject.org/packages/edk2/$pkg_version/$pkg_release/$pkg_arch/"
     pkg_nrva="$pkg-$pkg_version-$pkg_release.$pkg_arch"
     pkg_url="$pkg_base_url/$pkg_nrva.rpm"
@@ -200,7 +199,7 @@ if [ -n "$edk2rpm" ]; then
             ovmf_code="ovmf-ia32/OVMF_CODE.fd"
             ovmf_vars="ovmf-ia32/OVMF_VARS.fd"
         ;;
-        "aarch64"|"arm")
+        "aarch64"|"arm"*)
             ovmf_code="$ovmf_link_arch/QEMU_EFI-pflash.raw"
             ovmf_vars="$ovmf_link_arch/vars-template-pflash.raw"
         ;;
@@ -231,10 +230,9 @@ if [ -n "$edk2rpm" ]; then
 
     case "$ovmf_arch" in
         "x86_64") ovmf_pkg="edk2-ovmf"        ;;
-        "i386"|\
-        "i686")   ovmf_pkg="edk2-ovmf-ia32"   ;;
-        "arm")    ovmf_pkg="edk2-arm";        ;;
-        *)        ovmf_pkg="edk2-$ovmf_arch" ;;
+        "i386")   ovmf_pkg="edk2-ovmf-ia32"   ;;
+        "arm")    ovmf_pkg="edk2-arm"         ;;
+        *)        ovmf_pkg="edk2-$ovmf_arch"  ;;
     esac
 
     echo "Download RPM for $ovmf_pkg:"
@@ -261,7 +259,7 @@ if [ -n "$edk2rpm" ]; then
   {
     uefi_shell_arch="$1"
     uefi_shell_inst_dir="$2"
-
+    
     uefi_shell_release="25H1"
     uefi_shell_pkg="shell$uefi_shell_arch.efi"
 
@@ -276,11 +274,12 @@ if [ -n "$edk2rpm" ]; then
   }
 
   case "$arch" in
-      "x86_64")   uefi_arch="x64"    ;;
+      "x86_64")   uefi_arch="x64"                 ;;
       "i386"|\
-      "i686")     uefi_arch="ia32"   ;;
-      "aarch64")  uefi_arch="aa64"   ;;
-      *)          uefi_arch="$arch"  ;;
+      "i686")     uefi_arch="ia32";   arch="i386" ;;
+      "arm"*)     uefi_arch="arm";    arch="arm"  ;;
+      "aarch64")  uefi_arch="aa64"                ;;
+      *)          uefi_arch="$arch"               ;;
   esac
 
   work_dir="${EKD2_BASE:-""}"
