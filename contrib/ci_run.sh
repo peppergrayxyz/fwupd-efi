@@ -26,14 +26,14 @@ ekd2_dir="${2:-/usr/share/edk2}"
 arch="${ARCH:-"$(uname -m)"}"
 
 qemu_cmd="qemu-system-$arch"
-machine=""
+platform=""
 case "$arch" in
     "x86_64")   uefi_arch="x64"   ;;
     "i386"|\
-    "i686")     uefi_arch="ia32"                            qemu_cmd="qemu-system-i386" ;;
-    "arm"*)     uefi_arch="arm";   machine="-machine virt"; qemu_cmd="qemu-system-arm"  ;;
-    "aarch64")  uefi_arch="aa64";  machine="-machine virt" ;;
-    *)          uefi_arch="$arch"; machine="-machine virt" ;;
+    "i686")     uefi_arch="ia32"   qemu_cmd="qemu-system-i386" ;;
+    "arm"*)     uefi_arch="arm";   platform="-machine virt"; qemu_cmd="qemu-system-arm"  ;;
+    "aarch64")  uefi_arch="aa64";  platform="-machine virt -cpu neoverse-n1" ;;
+    *)          uefi_arch="$arch"; platform="-machine virt" ;;
 esac
 
 ovmf_code="$ekd2_dir/$uefi_arch/code.fd"
@@ -86,7 +86,7 @@ qemu_kill="70s"
 qemu_monitor_socket="$work_dir/qemu-monitor-socket"
 
 qemu_cmd_str="$(cat << EOF
-$qemu_cmd $machine
+$qemu_cmd $platform
  -drive if=pflash,format=raw,unit=0,file=$ovmf_code,readonly=on
  -drive if=pflash,format=raw,unit=1,file=$ovmf_vars,snapshot=on
  -drive file=fat:rw:$drive_dir,format=raw,media=disk,if=virtio
@@ -103,21 +103,22 @@ echo "Command: $qemu_cmd_str"
 echo "Log    : 'tail -f $fwupd_log'"
 echo "Monitor: 'socat -,echo=0,icanon=0 unix-connect:$qemu_monitor_socket'"
 
-# shellcheck disable=SC2086
-(timeout -k $qemu_kill $qemu_timeout $qemu_cmd_str > /dev/null) & qemu_pid=$!
+# shellcheck disable=SC2086 
+(timeout -k $qemu_kill $qemu_timeout $qemu_cmd_str > /dev/null ) & qemu_pid=$!
 
 if wait $qemu_pid 2>/dev/null; then 
-    echo "Test run finished:"
+    qemu_res=$?
+    echo "Test run finished!"
 else
     qemu_res=$?
 
-    echo "Test Log:"
-    echo "$(cat "$fwupd_log" 2> /dev/null) "
-
-    echo "Test run interrupted:"
+    echo "Test run interrupted!"
     case "$qemu_res" in
-        124) echo "$0: exited qemu after timeout ($qemu_timeout)" >&2 ;;
-        137) echo "$0: killed qemu after timeout ($qemu_kill)" >&2    ;;
-        *)   echo "$0: failed to start $qemu_cmd" >&2                 ;;
+        124) echo "- exited qemu after timeout ($qemu_timeout)" >&2 ;;
+        137) echo "- killed qemu after timeout ($qemu_kill)" >&2    ;;
+        *)   echo "- failed to start $qemu_cmd" >&2                 ;;
     esac
+
+    exit $qemu_res
 fi
+
