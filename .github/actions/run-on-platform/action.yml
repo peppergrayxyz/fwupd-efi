@@ -41,10 +41,11 @@ runs:
         ${{ steps.ci_install.outputs.content }}    
         }
         set -x
+        [ "$(uname -m)" = "x86_64" ] && [ "${{ inputs.arch }}" = "i386" ] && linux32
         mkdir -p "${PWD}/${{ inputs.build_dir }}"
         install "${{ inputs.distro }}" "${{ inputs.arch }}" ${{ inputs.features }}
       env: |
         TOOLCHAIN: "${{ inputs.toolchain }}"
       run: |
         set -x
-         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }}
+         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }} ${{ inputs.arch }}

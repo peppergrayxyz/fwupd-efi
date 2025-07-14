@@ -1,27 +1,6 @@
 #!/usr/bin/env sh
 set -eu
 
-work_dir="${1:-$(pwd)/build}"
-arch="${2:-"$(uname -m)"}"
-ekd2_dir="${3:-/usr/share/edk2}"
-
-machine=""
-case "$arch" in
-    "x86_64")   uefi_arch="x64"   ;;
-    "i386")     uefi_arch="ia32"  ;;
-    "aarch64")  uefi_arch="aa64"; machine="-machine virt" ;;
-    *)          uefi_arch="$arch" ;;
-esac
-
-fwupd_efi="fwupd$uefi_arch.efi"
-fwupd_path="$work_dir/efi/$fwupd_efi"
-fwupd_log="$work_dir/$fwupd_efi.log"
-qemu_cmd="qemu-system-$arch"
-
-ovmf_code="$ekd2_dir/$uefi_arch/OVMF_CODE.fd"
-ovmf_vars="$ekd2_dir/$uefi_arch/OVMF_VARS.fd"
-uefi_shell="$ekd2_dir/$uefi_arch/shell.efi"
-
 check_print() 
 {
     dep_name="$1"; dep_path="$2"; dep_res="$3"
@@ -42,6 +21,29 @@ check_dep()
     check_print "$dep_name" "$dep_path" "$dep_res"
 }
 
+work_dir="${1:-$(pwd)/build}"
+arch="${2:-"$(uname -m)"}"
+ekd2_dir="${3:-/usr/share/edk2}"
+
+qemu_cmd="qemu-system-$arch"
+machine=""
+case "$arch" in
+    "x86_64")   uefi_arch="x64"   ;;
+    "i386"|\
+    "i686")     uefi_arch="ia32"                           qemu_cmd="qemu-system-i386" ;;
+    "arm"*)     uefi_arch="arm";  machine="-machine virt"; qemu_cmd="qemu-system-arm"  ;;
+    "aarch64")  uefi_arch="aa64"; machine="-machine virt" ;;
+    *)          uefi_arch="$arch" ;;
+esac
+
+ovmf_code="$ekd2_dir/$uefi_arch/OVMF_CODE.fd"
+ovmf_vars="$ekd2_dir/$uefi_arch/OVMF_VARS.fd"
+uefi_shell="$ekd2_dir/$uefi_arch/shell.efi"
+
+fwupd_efi="fwupd$uefi_arch.efi"
+fwupd_path="$work_dir/efi/$fwupd_efi"
+fwupd_log="$work_dir/$fwupd_efi.log"
+
 echo "Testing on $arch in $work_dir:"
 
 check_cmd "qemu      " "$qemu_cmd"   || exit 1
@@ -51,7 +53,6 @@ check_dep "uefi_shell" "$uefi_shell" || exit 1
 check_dep "fwupd_efi " "$fwupd_path" || exit 1
 
 ## Create test env
-
 echo "Creating drive:"
 drive_dir="$work_dir/drive"
 rm -rf "$drive_dir"
@@ -62,16 +63,16 @@ cp "$fwupd_path" "$drive_dir"
 
 cat >"$drive_dir/startup.nsh" << EOF
 @echo -off
-echo <test>
+echo "<test>"
 
 fs0:\\$fwupd_efi
 
 if %lasterror% ne 0 then
-    echo [Error] LastError = %lasterror%
+    echo "[Result] %lasterror% (Error)"
 else
-    echo [OK] Status = 0 [Success]
+    echo "[Result] 0x0 (Success)"
 endif
-@echo </test>
+@echo "</test>"
 
 # shutdown
 reset -s                         
@@ -79,7 +80,7 @@ EOF
 
 tree "$drive_dir"
 
-## Run
+## Run Qemu
 qemu_timeout="30s"
 qemu_kill="1m"
 qemu_monitor_socket="$work_dir/qemu-monitor-socket"
@@ -102,6 +103,7 @@ echo "Command: $qemu_cmd_str"
 echo "Log    : 'tail -f $fwupd_log'"
 echo "Monitor: 'socat -,echo=0,icanon=0 unix-connect:$qemu_monitor_socket'"
 
+# shellcheck disable=SC2086
 (timeout -k $qemu_kill $qemu_timeout $qemu_cmd_str > /dev/null) & qemu_pid=$!
 
 if wait $qemu_pid 2>/dev/null; then 
@@ -110,7 +112,7 @@ else
     qemu_res=$?
 
     echo "Test Log:"
-    printf "%s\n" "$(cat "$fwupd_log" 2> /dev/null)"
+    echo "$(cat "$fwupd_log" 2> /dev/null) "
 
     echo "Test run interrupted:"
     case "$qemu_res" in
@@ -122,37 +124,78 @@ fi
 
 ## Eval Result
 
+echo "[Validate Test]"
+
 if ! [ -f "$fwupd_log" ]; then
-  echo "test failed (failed to boot test drive)"
-  return 1
+    echo "test failed (failed to boot test drive)"
+    exit 1
 fi
 
-fwupd_version=$(meson introspect meson.build --projectinfo --indent)
-fwupd_version=${fwupd_version#*\"version\"}
-fwupd_version=${fwupd_version#*\"}
-fwupd_version=${fwupd_version%%\"*}
+##
+nl='
+'
+##
+grep_n()
+{
+    number="$1" haystack="$2"; needle="$3"
+    if [ "${haystack#*"$needle"}" != "$haystack" ] || 
+    [ "${haystack%"$needle"*}" != "$haystack" ]; then
+    echo "$number: $haystack"; return 0;
+    else return 1; fi        
+}
 
-fwupd_ref="fwupd-efi version $fwupd_version WARNING: No updates to process, exiting in 10 seconds. [Error] LastError = 0x2"
-fwupd_re0=$(tr '\n' ' ' < "$fwupd_log" |  tr -d '\0-\31' | tr -d '\255-\377')
-fwupd_re1="${fwupd_re0##*<test> }"
-fwupd_res="${fwupd_re1%% </test>*}"
+test_str_1st="<test>"
+test_reference=$(cat <<'EOF'
+fwupd-efi version
+WARNING: No updates to process, exiting in 10 seconds.
+EOF
+)
+test_str_ret="[Result]"
+test_str_end="</test>"
+test_reference_full="$test_str_1st$nl$test_reference$nl$test_str_ret$nl$test_str_end$nl"
 
-if [ -z "$fwupd_re0" ] || [ "$fwupd_re1" = "$fwupd_re0" ] ; then
-  echo "test failed (failed to start)"
-  return 1
+curr_ref_line=""
+next_ref_line="$test_reference"
+test_result=""
+test_passed=true
+
+n=0; started=false; executing=false; completed=false; returned=false; finished=false; 
+while IFS= read -r line; do 
+    n=$((n+1))
+    grep_n "$n" "$line" "$test_str_1st" && { started=true; }
+    { $executing || { $started && ! $finished; }; } && test_result="$test_result$line$nl"
+    grep_n "$n" "$line" "$test_str_ret" && { returned=true; executing=false; }
+    grep_n "$n" "$line" "$test_str_end" && { finished=true; executing=false; }
+
+    if $started || $executing; then 
+        if ! $executing; then executing=true; else
+            if ! grep_n "$n" "$line" "$curr_ref_line"; then
+                test_passed=false
+                echo "$n expected: $curr_ref_line"
+                echo "$n found   : $line"
+            fi
+            if [ "$curr_ref_line" = "$next_ref_line" ]; then
+                executing=false; completed=true;
+            fi
+        fi
+        curr_ref_line="${next_ref_line%%"$nl"*}"
+        next_ref_line="${next_ref_line#"$curr_ref_line$nl"}"
+    fi
+done < "$fwupd_log"
+
+echo "[Result]"
+
+if ! $test_passed; then                    echo "failed (see above)";
+elif ! $started;   then test_passed=false; echo "failed to start"; 
+elif ! $finished;  then test_passed=false; echo "failed to complete"; 
+elif ! $returned;  then test_passed=false; echo "failed to return with expected status"; 
+elif ! $completed; then test_passed=false; echo "failed to match all tests";
+else                                       echo "passed"; fi
+
+if ! $test_passed; then
+    echo "[Ref]"; echo "$test_reference_full"
+    echo "[Log]"; if [ -n "$test_result" ]; then echo "$test_result"; else cat "$fwupd_log"; fi
 fi
 
-if [ "$fwupd_res" = "$fwupd_re1" ] ; then
-  echo "test failed (failed to complete)"
-  return 1
-fi
-
-if [ "$fwupd_res" != "$fwupd_ref" ]; then
-    echo "expected: $fwupd_ref"
-    echo "saw     : $fwupd_res"
-    echo "test failed"
-    return 1
-fi
-
-echo "test passed"
-return 0
+$test_passed || exit 1
+true

@@ -14,7 +14,7 @@ features="$*"
 
 echo "Installer started:"
 echo "- features: $features"
-echo "- arch    : $features"
+echo "- arch    : $arch"
 
 if [ -z "$distro" ]; then
   echo "Guessing distro by package manager" 
@@ -48,9 +48,17 @@ esac
 edk2rpm=""
 case "$arch" in
     "x86_64") ekd2package="edk2-ovmf"      ;;
-    "i386")   ekd2package="edk2-ovmf-ia32" ;;
+    "i386"|\
+    "i686")   ekd2package="edk2-ovmf-ia32" ;;
     "arm")    ekd2package="edk2-arm"       ;;
     *)        ekd2package="edk2-$arch"     ;;
+esac
+
+
+case "$arch" in
+    "i686")   qemu_system="qemu-system-i386"  ;;
+    "arm"*)   qemu_system="qemu-system-arm"   ;;
+    *)        qemu_system="qemu-system-$arch" ;;
 esac
 
 packages=""
@@ -69,8 +77,8 @@ for f in $features; do
       esac ;;
     "llvm")      packages="$packages llvm clang lld" ;;
     "qemu") case "$distro" in
-        "arch"*)   packages="$packages qemu-system-base"  ;;
-        *)       packages="$packages qemu-system-$arch" ;;
+        "arch"*) packages="$packages qemu-system-base" ;;
+        *)       packages="$packages $qemu_system"  ;;
       esac ;;
     "edk2") case "$distro" in
         "ubuntu"*|\
@@ -195,7 +203,8 @@ if [ -n "$edk2rpm" ]; then
             ovmf_code="ovmf/OVMF_CODE.fd"
             ovmf_vars="ovmf/OVMF_VARS.fd"
         ;;
-        "i386")
+        "i386"|\
+        "i686")
             ovmf_code="ovmf-ia32/OVMF_CODE.fd"
             ovmf_vars="ovmf-ia32/OVMF_VARS.fd"
         ;;
@@ -230,9 +239,10 @@ if [ -n "$edk2rpm" ]; then
 
     case "$ovmf_arch" in
         "x86_64") ovmf_pkg="edk2-ovmf"        ;;
-        "i386")   ovmf_pkg="edk2-ovmf-ia32"   ;;
+        "i386"|\
+        "i686")   ovmf_pkg="edk2-ovmf-ia32"   ;;
         "arm")    ovmf_pkg="edk2-arm";        ;;
-        *)        ovmf_pkg="$edk2-$ovmf_arch" ;;
+        *)        ovmf_pkg="edk2-$ovmf_arch" ;;
     esac
 
     echo "Get latest RPM for $ovmf_pkg:"
@@ -276,7 +286,8 @@ if [ -n "$edk2rpm" ]; then
 
   case "$arch" in
       "x86_64")   uefi_arch="x64"    ;;
-      "i386")     uefi_arch="ia32"   ;;
+      "i386"|\
+      "i686")     uefi_arch="ia32"   ;;
       "aarch64")  uefi_arch="aa64"   ;;
       *)          uefi_arch="$arch"  ;;
   esac
@@ -297,4 +308,4 @@ if [ -n "$edk2rpm" ]; then
   fi
 fi
 
-return 0
+true

@@ -2,8 +2,11 @@
 set -euo pipefail
 
 build_dir="${1:-build}"
-shift
+arch="${2:-" "}"
+shift 2 || true
 meson_args="$*"
+
+[ -n "$arch" ] && echo "[Warning]: cross compiling is currently not configured"
 
 toolchain="${TOOLCHAIN:-}"
 configure_env=""
@@ -21,10 +24,10 @@ echo "Configure project:"
 echo "- toolchain: $toolchain"
 echo "- build-dir: $build_dir"
 echo "$configure_cmd"
-eval "$configure_cmd" || return $?
+eval "$configure_cmd" || exit $?
 
 echo "Build project:"
 echo "$build_cmd"
-eval "$build_cmd" || return $?
+eval "$build_cmd" || exit $?
 
-return 0
+true
