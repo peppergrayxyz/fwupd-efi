@@ -73,12 +73,12 @@ for f in $features; do
       esac ;;
     "gnu") case "$distro" in
         "alpine"*) packages="$packages gcc musl-dev binutils" ;;
-        *)       packages="$packages gcc binutils" ;;
+        *)         packages="$packages gcc binutils" ;;
       esac ;;
-    "llvm")      packages="$packages llvm clang lld" ;;
+    "llvm")        packages="$packages llvm clang lld" ;;
     "qemu") case "$distro" in
-        "arch"*) packages="$packages qemu-system-base" ;;
-        *)       packages="$packages $qemu_system"  ;;
+        "arch"*)   packages="$packages qemu-system-base" ;;
+        *)         packages="$packages $qemu_system"  ;;
       esac ;;
     "edk2") case "$distro" in
         "ubuntu"*|\
@@ -89,7 +89,7 @@ for f in $features; do
       esac 
       edk2rpm=1;
       case "$distro" in
-        *)       packages="$packages rpm2cpio cpio" ;;
+        *)         packages="$packages wget tar binutils" ;;
       esac ;;
     "buildpkg") case "$distro" in
         "ubuntu"*|\
@@ -101,12 +101,12 @@ for f in $features; do
     "py3pe") case "$distro" in
         "arch"*)   packages="$packages python-pefile"  ;;
         "alpine"*) packages="$packages py3-pefile"  ;;
-        *)       packages="$packages python3-pefile" ;;
+        *)         packages="$packages python3-pefile" ;;
       esac ;;
     "gnuefi") case "$distro" in
         "fedora"*) packages="$packages gnu-efi-devel"  ;;
         "alpine"*) packages="$packages gnu-efi-dev"  ;;
-        *)       packages="$packages gnu-efi" ;;
+        *)         packages="$packages gnu-efi" ;;
       esac ;;
     *)  echo "$0: unkonw feature '$f'" >&2; 
         exit 1 
@@ -146,6 +146,7 @@ if [ -n "$edk2rpm" ]; then
   {
     create_link_target="$1"
     create_link_link="$2"
+    echo "$(dirname "$create_link_link")/$create_link_target"
     if ! { [ -f "$create_link_target" ] || [ -f "$(dirname "$create_link_link")/$create_link_target" ]; }; then
       echo "$create_link_target does not exist" >&2
       return 1
@@ -157,95 +158,90 @@ if [ -n "$edk2rpm" ]; then
   {
     pkg="$1"
     pkg_dir="$2"
-    pkg_arch="noarch"
 
-    case "$pkg" in
-    *"ia32"|\
-    *"arm")   pkg_version="20240813"; pkg_release="2.fc41" ;;
-    *)        pkg_version="20250523"; pkg_release="6.fc42"
-    esac
-    
-    pkg_base_url="https://kojipkgs.fedoraproject.org/packages/edk2/$pkg_version/$pkg_release/$pkg_arch/"
-    pkg_nrva="$pkg-$pkg_version-$pkg_release.$pkg_arch"
-    pkg_url="$pkg_base_url/$pkg_nrva.rpm"
-    pkg_path="$pkg_dir/$pkg.rpm"
+    pkg_base_url="http://ftp.debian.org/debian/pool/main/e/edk2"
+    pkg_release="2025.02-8_all"
+    pkg_name="${pkg}_$pkg_release"
+    pkg_url="$pkg_base_url/$pkg_name.deb"
+    pkg_path="$pkg_dir/$pkg.deb"
+  
 
     echo "- pkg    : $pkg"
-    echo "- version: $pkg_version"
     echo "- release: $pkg_release"
-    echo "- arch   : $pkg_arch"
-    echo "- nrva   : $pkg_nrva"
     echo "- pkg-url: $pkg_url"
     echo "- file   : $pkg_path"
-
+  
     if ! $WGET "$pkg_path" "$pkg_url"; then
-      echo "download failed" >&2
+      echo "download failed $?" >&2
       return 1;
     fi
   }
 
   createOMVFLinks()
   {
-    ovmf_link_arch="$1"
-    ovmf_inst_dir="$2"
+    ovmflink_arch="$1"
+    ovmflink_dir="$2"
 
-    case "$ovmf_link_arch" in
+    case "$ovmflink_arch" in
         "x86_64")
-            ovmf_code="ovmf/OVMF_CODE.fd"
-            ovmf_vars="ovmf/OVMF_VARS.fd"
+            ovmf_code="OVMF/OVMF_CODE_4M.fd"
+            ovmf_vars="OVMF/OVMF_VARS_4M.fd"
         ;;
         "i386"|\
         "i686")
-            ovmf_code="ovmf-ia32/OVMF_CODE.fd"
-            ovmf_vars="ovmf-ia32/OVMF_VARS.fd"
+            ovmf_code="OVMF/OVMF32_CODE_4M.fd"
+            ovmf_vars="OVMF/OVMF32_VARS_4M.fd"
         ;;
-        "aarch64"|"arm"*)
-            ovmf_code="$ovmf_link_arch/QEMU_EFI-pflash.raw"
-            ovmf_vars="$ovmf_link_arch/vars-template-pflash.raw"
+        "aarch64")
+            ovmf_code="AAVMF/AAVMF_CODE.fd"
+            ovmf_vars="AAVMF/AAVMF_VARS.fd"
+        ;;
+        "arm"*)
+            ovmf_code="AAVMF/AAVMF32_CODE.fd"
+            ovmf_vars="AAVMF/AAVMF32_VARS.fd"
         ;;
         "loongarch64")
-            ovmf_code="$ovmf_link_arch/QEMU_EFI.fd"
-            ovmf_vars="$ovmf_link_arch/QEMU_VARS.fd"
+            ovmf_code="qemu-efi-loongarch64/QEMU_EFI.fd"
+            ovmf_vars="qemu-efi-loongarch64/QEMU_VARS.fd"
         ;;
         "riscv64")
-            ovmf_code="riscv/RISCV_VIRT_CODE.fd"
-            ovmf_vars="riscv/RISCV_VIRT_VARS.fd"
+            ovmf_code="qemu-efi-riscv64/RISCV_VIRT_CODE.fd"
+            ovmf_vars="qemu-efi-riscv64/RISCV_VIRT_VARS.fd"
         ;;
-        *)
-            ovmf_code="$ovmf_link_arch/OVMF_CODE.fd"
-            ovmf_vars="$ovmf_link_arch/OVMF_VARS.fd"
-        ;;
+        *) 
+            ovmf_code="qemu-efi-$ovmflink_arch/QEMU_EFI.fd"
+            ovmf_vars="qemu-efi-$ovmflink_arch/QEMU_VARS.fd"
     esac
 
-    create_link "../$ovmf_code" "$ovmf_inst_dir/OVMF_CODE.fd" || return $?
-    create_link "../$ovmf_vars" "$ovmf_inst_dir/OVMF_VARS.fd" || return $?
+    create_link "../../$ovmf_code" "$ovmflink_dir/code.fd" || return $?
+    create_link "../../$ovmf_vars" "$ovmflink_dir/vars.fd" || return $?
   }
-
   installOVMF()
   {
-    ovmf_arch="$1"
-    ovmf_work_dir="$2"
-    ovmf_temp_dir="$3"
-    ovmf_inst_dir="$4"
+    ovmf_pkg_arch="$1"
+    ovmf_temp_dir="$2"
+    ovmf_inst_dir="$3"
+    ovmf_link_dir="$4"
 
-    case "$ovmf_arch" in
-        "x86_64") ovmf_pkg="edk2-ovmf"        ;;
-        "i386")   ovmf_pkg="edk2-ovmf-ia32"   ;;
-        "arm")    ovmf_pkg="edk2-arm"         ;;
-        *)        ovmf_pkg="edk2-$ovmf_arch"  ;;
+    case "$ovmf_pkg_arch" in
+        "x64")  ovmf_pkg="ovmf"                 ;;
+        "ia32") ovmf_pkg="ovmf-ia32"            ;;
+        *)      ovmf_pkg="qemu-efi-$ovmf_pkg_arch"  ;;
     esac
 
-    echo "Download RPM for $ovmf_pkg:"
-    getOvmfPkg "$ovmf_pkg" "$ovmf_temp_dir" || return $?
+    echo "Download deb for $ovmf_pkg:"
+    ovmf_work_dir="$ovmf_temp_dir/$ovmf_pkg"
+    mkdir -p "$ovmf_work_dir"
+    getOvmfPkg "$ovmf_pkg" "$ovmf_work_dir" || return $?
 
     echo "Install $ovmf_pkg:"
-    ovmf_rpm_path="$ovmf_temp_dir/$ovmf_pkg.rpm"
-    (cd "$ovmf_work_dir/" && rpm2cpio "$ovmf_rpm_path" | cpio -idmvu) || return $?
-    rm "$ovmf_rpm_path" 
+    ar x "$ovmf_work_dir/$ovmf_pkg.deb" --output="$ovmf_work_dir" || return $?
+    tar -xJf "$ovmf_work_dir/data.tar.xz" --directory="$ovmf_inst_dir/"  || return $?
+    rm -rf "$ovmf_work_dir" 
     
     echo "Create links:"  
-    mkdir -p "$ovmf_inst_dir"
-    createOMVFLinks "$ovmf_arch" "$ovmf_inst_dir" || return $?
+    mkdir -p "$ovmf_link_dir"
+    createOMVFLinks "$ovmf_pkg_arch" "$ovmf_link_dir" || return $?
   }
 
   createUefiShellLinks()
@@ -284,17 +280,18 @@ if [ -n "$edk2rpm" ]; then
 
   work_dir="${EKD2_BASE:-""}"
   force="${EDK2_FORCE:-""}"
-  install_dir="$work_dir/usr/share/edk2/$uefi_arch"
+  install_dir="$work_dir"
   temp_dir="$work_dir/tmp"
+  link_dir="$install_dir/usr/share/edk2/$uefi_arch"
 
   echo "OVMF"
-  if ! createOMVFLinks "$arch" "$install_dir" || [ -n "$force" ] ; then
-    installOVMF "$arch" "$work_dir" "$temp_dir" "$install_dir" || return $?
+  if ! createOMVFLinks "$arch" "$link_dir" || [ -n "$force" ] ; then
+    installOVMF "$arch" "$temp_dir" "$install_dir" "$link_dir" || return $?
   fi
 
   echo "UEFI-Shell"
-  if ! createUefiShellLinks "$uefi_arch" "$install_dir" || [ -n "$force" ]; then
-    installUefiShell "$uefi_arch" "$install_dir" || return $?
+  if ! createUefiShellLinks "$uefi_arch" "$link_dir" || [ -n "$force" ]; then
+    installUefiShell "$uefi_arch" "$link_dir" || return $?
   fi
 fi
 

@@ -30,14 +30,14 @@ machine=""
 case "$arch" in
     "x86_64")   uefi_arch="x64"   ;;
     "i386"|\
-    "i686")     uefi_arch="ia32"                           qemu_cmd="qemu-system-i386" ;;
-    "arm"*)     uefi_arch="arm";  machine="-machine virt"; qemu_cmd="qemu-system-arm"  ;;
-    "aarch64")  uefi_arch="aa64"; machine="-machine virt" ;;
-    *)          uefi_arch="$arch" ;;
+    "i686")     uefi_arch="ia32"                            qemu_cmd="qemu-system-i386" ;;
+    "arm"*)     uefi_arch="arm";   machine="-machine virt"; qemu_cmd="qemu-system-arm"  ;;
+    "aarch64")  uefi_arch="aa64";  machine="-machine virt" ;;
+    *)          uefi_arch="$arch"; machine="-machine virt" ;;
 esac
 
-ovmf_code="$ekd2_dir/$uefi_arch/OVMF_CODE.fd"
-ovmf_vars="$ekd2_dir/$uefi_arch/OVMF_VARS.fd"
+ovmf_code="$ekd2_dir/$uefi_arch/code.fd"
+ovmf_vars="$ekd2_dir/$uefi_arch/vars.fd"
 uefi_shell="$ekd2_dir/$uefi_arch/shell.efi"
 
 fwupd_efi="fwupd$uefi_arch.efi"
@@ -58,7 +58,7 @@ drive_dir="$work_dir/drive"
 rm -rf "$drive_dir"
 boot_dir="$drive_dir/EFI/BOOT"
 mkdir -p "$boot_dir"
-cp "$uefi_shell" "$boot_dir/boot$uefi_arch.efi"
+#cp "$uefi_shell" "$boot_dir/boot$uefi_arch.efi"
 cp "$fwupd_path" "$drive_dir"
 
 cat >"$drive_dir/startup.nsh" << EOF
@@ -81,8 +81,8 @@ EOF
 tree "$drive_dir"
 
 ## Run Qemu
-qemu_timeout="30s"
-qemu_kill="1m"
+qemu_timeout="60s"
+qemu_kill="70s"
 qemu_monitor_socket="$work_dir/qemu-monitor-socket"
 
 qemu_cmd_str="$(cat << EOF
