@@ -3,14 +3,14 @@
 set -eu
 
 if [ $# -lt 2 ]; then
-    echo "usage $0 <distro> <features...>" >&2
+    echo "usage $0 <distro> <arch> <features...>" >&2
     exit 1
 fi
 
 distro="$1"
-shift
+arch="${2:-$(uname -m)}"
+shift 2
 features="$*"
-arch="$(uname -m)"
 
 echo "Installer started:"
 echo "- features: $features"
@@ -121,7 +121,7 @@ eval "$install_cmd" || return 1
 #
 if [ -n "$edk2rpm" ]; then
 
-  WGET="wget --quiet --show-progress -O"
+  WGET="wget -qO"
 
   download_pkg()
   {
@@ -296,3 +296,5 @@ if [ -n "$edk2rpm" ]; then
     installUefiShell "$uefi_arch" "$install_dir" || return $?
   fi
 fi
+
+return 0

@@ -10,20 +10,19 @@ permissions:
   contents: read
 
 jobs:
-  run-latest:
+  build:
     strategy:
       fail-fast: false
       matrix:
+        image: [ alpine:latest ]
         arch: [ x86_64, i386, arm, aarch64, riscv64, loongarch64 ]
         features: [ 
-          "base gnu py3pe gnuefi"
+          "base gnu py3pe gnuefi",
+          "base llvm py3pe gnuefi"
         ]
-        include:
-          - arch: loongarch64
-            image: ghcr.io/loong64/alpine
 
     uses: ./.github/workflows/ci_runner.yaml
     with:
       arch: ${{ matrix.arch }}
       features: ${{ matrix.features }}
-      image: ${{ matrix.image }}
+      image: ${{ matrix.arch == 'loongarch64' && 'loongarch64/alpine:3.21' || 'alpine:latest' }}
