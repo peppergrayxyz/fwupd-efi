@@ -153,36 +153,28 @@ if [ -n "$edk2rpm" ]; then
     ln -vfs "$create_link_target" "$create_link_link"
   }
 
-  getLatestRPM()
+  getOvmfPkg()
   {
     pkg="$1"
     pkg_dir="$2"
 
-    echo "- pkg    : $pkg"
+    pkg_arch="noarch"
+    pkg_version="20250523"
+    pkg_release="6.fc42" 
 
-    base_url="https://www.rpmfind.net"
-    query_url="$base_url/linux/rpm2html/search.php?query=$pkg"
-    echo "- query  : $query_url"
+    case "$pkg" in
+    *"arm") pkg_version="20240813"; pkg_release="2.fc41" ;;
+    esac
 
-    if ! data="$($WGET - "$query_url")" ; then
-      echo "reqeust failed" >&2
-      return 1;
-    fi
-
-    pkg_url="${data##*Download}"
-
-    if [ -z "$data" ] || [ "$pkg_url" = "$data" ] ; then
-      echo "package not found" >&2
-      return 1
-    fi
-
-    pkg_url="${pkg_url%%.rpm*}"
-    pkg_url="${pkg_url##*=}"
-    pkg_url="${pkg_url#*/}"
-    pkg_url="$base_url/$pkg_url.rpm"
-    pkg_nrva="$(basename "$pkg_url")"
+    pkg_base_url="https://kojipkgs.fedoraproject.org/packages/edk2/$pkg_version/$pkg_release/$pkg_arch/"
+    pkg_nrva="$pkg-$pkg_version-$pkg_release.$pkg_arch"
+    pkg_url="$pkg_base_url/$pkg_nrva.rpm"
     pkg_path="$pkg_dir/$pkg.rpm"
 
+    echo "- pkg    : $pkg"
+    echo "- version: $pkg_version"
+    echo "- release: $pkg_release"
+    echo "- arch   : $pkg_arch"
     echo "- nrva   : $pkg_nrva"
     echo "- pkg-url: $pkg_url"
     echo "- file   : $pkg_path"
@@ -245,8 +237,8 @@ if [ -n "$edk2rpm" ]; then
         *)        ovmf_pkg="edk2-$ovmf_arch" ;;
     esac
 
-    echo "Get latest RPM for $ovmf_pkg:"
-    getLatestRPM "$ovmf_pkg" "$ovmf_temp_dir" || return $?
+    echo "Download RPM for $ovmf_pkg:"
+    getOvmfPkg "$ovmf_pkg" "$ovmf_temp_dir" || return $?
 
     echo "Install $ovmf_pkg:"
     ovmf_rpm_path="$ovmf_temp_dir/$ovmf_pkg.rpm"
@@ -270,9 +262,8 @@ if [ -n "$edk2rpm" ]; then
     uefi_shell_arch="$1"
     uefi_shell_inst_dir="$2"
 
-    uefi_shell_pkg="shell$uefi_shell_arch.efi"
-
     uefi_shell_release="25H1"
+    uefi_shell_pkg="shell$uefi_shell_arch.efi"
 
     uefi_shell_source="https://github.com/pbatard/UEFI-Shell/releases/download/$uefi_shell_release"
     uefi_shell_url="$uefi_shell_source/$uefi_shell_pkg"
