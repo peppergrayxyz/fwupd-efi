@@ -45,7 +45,8 @@ jobs:
         features:  ${{ inputs.features }}
         toolchain: ${{ inputs.toolchain }}
         build_dir: ${{ inputs.build_dir }}
-        run:        build
+        run: |
+         ./contrib/ci_build.sh
     
     - uses: actions/upload-artifact@v4
       with:
@@ -75,7 +76,8 @@ jobs:
         image:      ${{ inputs.image }}
         features:   'qemu edk2'
         build_dir:  ${{ inputs.build_dir }}
-        run:        run
+        run: |
+          ./contrib/ci_run.sh fwupd
 
     - uses: actions/upload-artifact@v4
       with:

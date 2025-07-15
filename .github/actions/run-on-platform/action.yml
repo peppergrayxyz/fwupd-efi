@@ -49,4 +49,4 @@ runs:
       run: |
         set -x
         [ "$(uname -m)" = "x86_64" ] && [ "${{ inputs.arch }}" = "i386" ] && export ARCH=i386
-         ./contrib/ci_${{ inputs.run }}.sh ${{ inputs.build_dir }}
+        ${{ inputs.run }}

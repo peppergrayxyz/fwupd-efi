@@ -27,14 +27,14 @@ grep_n()
 }
 
 ## Ref Data
-test_str_1st="<test>"
+test_str_1st="<cmd>"
 test_reference=$(cat <<'EOF'
 fwupd-efi version
 WARNING: No updates to process, exiting in 10 seconds.
 EOF
 )
-test_str_ret="[Result]"
-test_str_end="</test>"
+test_str_ret="<cmd-res>"
+test_str_end="</cmd>"
 test_reference_full="$test_str_1st$nl$test_reference$nl$test_str_ret$nl$test_str_end$nl"
 
 ## Variables
