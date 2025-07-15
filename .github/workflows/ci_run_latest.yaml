@@ -1,9 +1,9 @@
 name: CI run on latest
 on:
   push:
-    branches: [ main, ci ]
+    branches: [ ci_v1 ]
   pull_request:
-    branches: [ main ]
+    branches: [ ci_v1 ]
 
 permissions:
   packages: write
