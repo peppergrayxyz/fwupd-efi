@@ -5,6 +5,7 @@ import sys
 import argparse
 import tempfile
 import pathlib
+import pefile
 
 
 def _probe_objcopy(args) -> int:
@@ -67,12 +68,22 @@ def _probe_objcopy(args) -> int:
         if result.returncode != 0:
             return result.returncode
 
+        try:
+            pefile.PE(str(efi_file))
+        except pefile.PEFormatError as error:
+            print(f"invalid EFI PE image: {error}", file=sys.stderr)
+            return 1
+
+        return 0
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cc", default="gcc", help="Compiler to use ")
     parser.add_argument("--objcopy", default="objcopy", help="Objcopy binary to use")
     parser.add_argument("--target", default="efi-app-x86_64", help="EFI output target")
+    parser.add_argument("--lds", default="efi.lds", help="EFI linker script")
+    parser.add_argument("--crt0", default="crt0.o", help="EFI C runtime initialization")
 
     _args = parser.parse_args()
     res = _probe_objcopy(_args)
