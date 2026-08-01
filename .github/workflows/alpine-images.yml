@@ -1,0 +1,42 @@
+name: Build Alpine CI images
+
+on:
+  workflow_call:
+    inputs:
+      alpine_version:
+        description: Alpine minirootfs version
+        required: true
+        type: string
+
+  push:
+    branches:
+      - main
+    paths:
+      - contrib/container/Dockerfile.alpine
+      - contrib/container/pkgdebs.sh
+      - .github/workflows/alpine-images.yml
+      - .github/workflows/alpine-image-target.yml
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: alpine-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  target:
+    name: Build target ${{ matrix.target }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - gnu
+          - llvm
+
+    uses: ./.github/workflows/alpine-image-target.yml
+    with:
+      target: ${{ matrix.target }}
+      alpine_version: ${{ inputs.alpine_version || '3.24.1' }}
