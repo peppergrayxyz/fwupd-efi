@@ -72,27 +72,30 @@ endif
 
 arch_lds = 'efi.lds'
 arch_crt = 'crt0.o'
+arch_lds_efi    = 'elf_@0@@1@_efi.lds'.format(gnu_efi_path_arch, lds_os)
+arch_lds_local  = 'elf_@0@@1@_efi.lds'.format(gnu_efi_arch, lds_os)
+arch_lds_system = 'elf_@0@@1@_efi_system.lds'.format(gnu_efi_arch, lds_os)
+arch_crt_efi    = 'crt0-efi-@0@.o'.format(gnu_efi_path_arch)
+arch_crt_local  = 'crt0-efi-@0@.o'.format(gnu_efi_arch)
+
 if efi_ldsdir == ''
   efi_ldsdir = join_paths(efi_libdir, 'gnuefi', gnu_efi_path_arch)
   if not fs.is_file(efi_ldsdir / arch_lds)
-    arch_lds = 'elf_@0@@1@_efi.lds'.format(gnu_efi_path_arch, lds_os)
-    arch_crt = 'crt0-efi-@0@.o'.format(gnu_efi_path_arch)
+    arch_lds = arch_lds_efi
+    arch_crt = arch_crt_efi
     efi_ldsdir = join_paths(efi_libdir, 'gnuefi')
   endif
   if not fs.is_file(efi_ldsdir / arch_lds)
     efi_ldsdir = efi_libdir
-    if not fs.is_file(efi_ldsdir / arch_lds)
-      error('Cannot find @0@'.format(arch_lds))
-    endif
   endif
 else
   if not fs.is_file(efi_ldsdir / arch_lds)
-    arch_lds = 'elf_@0@@1@_efi.lds'.format(gnu_efi_path_arch, lds_os)
-    arch_crt = 'crt0-efi-@0@.o'.format(gnu_efi_path_arch)
+    arch_lds = arch_lds_efi
+    arch_crt = arch_crt_efi
   endif
-  if not fs.is_file(efi_ldsdir / arch_lds)
-    error('Cannot find @0@'.format(arch_lds))
-  endif
+endif
+if not fs.is_file(efi_ldsdir / arch_lds)
+  error('Cannot find @0@'.format(arch_lds))
 endif
 efi_crtdir = efi_ldsdir
 
@@ -119,6 +122,10 @@ cmd = run_command(
 have_objcopy_efi = cmd.returncode() == 0
 message('objcopy @0@: @1@'.format(efi_app_target, have_objcopy_efi))
 
+# do we need local crt or lds?
+local_crt = false
+local_lds = false
+
 if have_objcopy_efi
   objcopy_manualsymbols = false
   generate_binary_extra = []
@@ -134,16 +141,14 @@ if get_option('efi_sbat_distro_id') != ''
   cmd = run_command('grep', '-q', 'sbat', join_paths(efi_ldsdir, arch_lds), check: false)
   if cmd.returncode() != 0
     warning('Cannot find SBAT section in @0@, using local copy'.format(join_paths(efi_ldsdir, arch_lds)))
-    efi_ldsdir = join_paths(meson.current_source_dir(), 'lds')
-    arch_lds = 'elf_@0@@1@_efi.lds'.format(gnu_efi_arch, lds_os)
+    local_lds = true
   endif
 endif
 
 # SBOM is never in system lds
 if uswid.found()
   warning('Switching to local copy of linker script as using SBOM')
-  efi_ldsdir = join_paths(meson.current_source_dir(), 'lds')
-  arch_lds = 'elf_@0@@1@_efi.lds'.format(gnu_efi_arch, lds_os)
+  local_lds = true
 endif
 
 # is the system crt0 for arm and aarch64 new enough to know about SBAT?
@@ -154,8 +159,8 @@ if objcopy_manualsymbols
       warning('Cannot find SBAT section in @0@, using local copy'.format(join_paths(efi_crtdir, arch_crt)))
       # The gnuefi libraries are still needed
       efi_libdir = efi_crtdir
-      efi_crtdir = join_paths(meson.current_build_dir(), 'crt0')
-      efi_ldsdir = join_paths(meson.current_source_dir(), 'lds')
+      local_crt = true
+      local_lds = true
     endif
   endif
 endif
@@ -164,15 +169,24 @@ endif
 if objcopy_manualsymbols
   if uswid.found()
     warning('Switching to local copy of crt0 as using SBOM')
-    efi_crtdir = join_paths(meson.current_build_dir(), 'crt0')
-    efi_ldsdir = join_paths(meson.current_source_dir(), 'lds')
+    local_crt = true
+    local_lds = true
   endif
+endif
+
+if local_crt
+  efi_crtdir = join_paths(meson.current_build_dir(), 'crt0')
+  arch_crt   = arch_crt_local
+endif
+if local_lds
+  efi_ldsdir = join_paths(meson.current_source_dir(), 'lds')
+  arch_lds   = arch_lds_local
 endif
 
 # Check aligned lds and crt0 on ARM64 this breaks otherwise
 if host_cpu == 'aarch64' and not objcopy_manualsymbols
   if efi_ldsdir == join_paths(meson.current_source_dir(), 'lds')
-      arch_lds = 'elf_@0@@1@_efi_system.lds'.format(gnu_efi_arch, lds_os)
+      arch_lds = arch_lds_system
   endif
 endif
 
