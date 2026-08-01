@@ -1,0 +1,214 @@
+name: Continuous Integration - Architectures
+
+on:
+  workflow_call:
+    inputs:
+      targets:
+        description: Alpine build targets
+        required: false
+        type: string
+        default: '[
+          "gnu",
+          "gnu_genpeimg",
+          "gnu_uswid",
+          "gnu_genpeimg_uswid",
+          "llvm",
+          "llvm_genpeimg",
+          "llvm_uswid",
+          "llvm_genpeimg_uswid",
+          ]'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/${{ github.repository }}-alpine
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      image_inputs: ${{ steps.filter.outputs.image_inputs }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            image_inputs:
+              - 'contrib/container/Dockerfile.alpine'
+              - 'contrib/container/pkgdeps.sh'
+              - '.github/workflows/alpine-images.yml'
+              - '.github/workflows/alpine-image-target.yml'
+
+  alpine_version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_missing: ${{ steps.image.outputs.missing }}
+    steps:
+      - id: version
+        run: |
+          set -euo pipefail
+          version="$(
+            curl -fsSL https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/latest-releases.yaml |
+              sed -nE 's/^[[:space:]]*file: alpine-minirootfs-(.+)-x86_64\.tar\.gz$/\1/p'
+          )"
+          test -n "${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: image
+        env:
+          ALPINE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          missing=false
+          for target in gnu llvm; do
+            image="${IMAGE_BASE}-${target}:${ALPINE_VERSION}"
+            output=""
+            if output="$(docker manifest inspect "${image}" 2>&1)"; then
+              continue
+            elif grep -qiE 'manifest unknown|not found' <<<"${output}"; then
+              echo "Missing ${image}"
+              missing=true
+            else
+              echo "Failed to inspect ${image}: ${output}" >&2
+              exit 1
+            fi
+          done
+          echo "missing=${missing}" >> "${GITHUB_OUTPUT}"
+
+  alpine-images:
+    needs:
+      - changes
+      - alpine_version
+    if: >-
+      needs.changes.outputs.image_inputs == 'true' ||
+      needs.alpine_version.outputs.image_missing == 'true'
+    uses: ./.github/workflows/alpine-images.yml
+    with:
+      alpine_version: ${{ needs.alpine_version.outputs.version }}
+      targets: ${{ inputs.targets }}
+
+  build:
+    needs:
+      - changes
+      - alpine_version
+      - alpine-images
+
+    # Run after images succeeded, or immediately when images were skipped.
+    if: >-
+      ${{
+        !cancelled() &&
+        needs.changes.result == 'success' &&
+        needs.alpine_version.result  == 'success' &&
+        (
+          needs.alpine-images.result == 'success' ||
+          needs.alpine-images.result == 'skipped'
+        )
+      }}
+
+    runs-on: ubuntu-latest
+    name: ${{ matrix.target }} / ${{ matrix.arch.name }}
+
+    continue-on-error: ${{ matrix.allow_failure || false }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ inputs.targets }}
+
+        arch:
+          - name: x86_64
+            platform: linux/amd64
+
+          - name: i686
+            platform: linux/386
+
+          - name: arm
+            platform: linux/arm/v7
+
+          - name: arm64
+            platform: linux/arm64
+
+          - name: riscv64
+            platform: linux/riscv64
+
+          - name: loong64
+            platform: linux/loong64
+
+        include:
+
+          # /usr/bin/ld.bfd: BFD (GNU Binutils) 2.45.1 
+          # assertion fail /home/buildozer/aports/main/binutils/src/binutils-2.45.1/bfd/elfnn-loongarch.c:4119
+          - target: gnu
+            arch:
+              name: loong64
+              platform: linux/loong64
+            allow_failure: true
+    
+          # ld.lld: error: internal linker error: cannot read addend for relocation R_ARM_ABS16
+          - target: llvm
+            arch:
+              name: arm
+              platform: linux/arm/v7
+            allow_failure: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: all
+
+      - name: Download built architecture image
+        if: needs.alpine-images.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: image-${{ matrix.target }}-${{ matrix.arch.name }}
+          path: ${{ runner.temp }}/image
+
+      - name: Build in container
+        env:
+          IMAGE_ID: ${{ env.IMAGE_BASE }}-${{ matrix.target }}
+          PLATFORM: ${{ matrix.arch.platform }}
+        run: |
+          set -eu
+          echo $GITHUB_WORKSPACE
+
+          if [[ -f "${RUNNER_TEMP}/image/image.tar" ]]; then
+            podman load --input "${RUNNER_TEMP}/image/image.tar"
+            image="${IMAGE_ID}:build-${{ matrix.arch.name }}"
+          else
+            image="${IMAGE_ID}:${{ needs.alpine_version.outputs.version }}"
+            podman pull --platform "${PLATFORM}" "${image}"
+          fi
+
+          PERSONALITY=""
+          case "${{ matrix.arch.name }}" in
+              i686|arm) PERSONALITY="--personality=LINUX32" ;;
+          esac
+
+          echo "$(uname -m)/${{ matrix.arch.name }} $PERSONALITY"
+
+          podman run --rm \
+            --platform "$PLATFORM" \
+            $PERSONALITY \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            --env CI=true \
+            --env TARGET=${{ matrix.target }} \
+            "$image" \
+            ./contrib/ci_build.sh
